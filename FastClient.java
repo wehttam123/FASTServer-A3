@@ -38,6 +38,9 @@
       @Override
       public void run() {
         try {
+          System.out.println("timeout: seg: " + segment.getSeqNum() + " port: " + IPAddress + " socket: " + UDPsocket + " time: " + time);
+
+
           // Resend segment
           DatagramPacket sendPacket =  new DatagramPacket(segment.getBytes(), segment.getLength(), IPAddress, port);
           if (!UDPsocket.isClosed())
@@ -45,9 +48,11 @@
             UDPsocket.send(sendPacket);
 
             // Restart timer
-            TimerTask timerTask = new TimeOutHandler(segment, IPAddress, port, UDPsocket, time);
             Timer timer = new Timer(true);
-            timer.schedule(timerTask,time);
+            timer.schedule(new TimeOutHandler(segment, IPAddress, port, UDPsocket, time), time);
+            //TimerTask timerTask = new TimeOutHandler(segment, IPAddress, port, UDPsocket, time);
+            //Timer timer = new Timer(true);
+            //timer.schedule(timerTask,time);*/
          }
         }
         catch (Exception e)
@@ -165,7 +170,7 @@ public class FastClient{
 
     // Timer
     TimerTask timerTask = null;
-    Timer timer = null;
+    Timer timer = new Timer(true);
 
     // TxQueue
     TxQueue queue = new TxQueue(wind);
@@ -233,6 +238,8 @@ public class FastClient{
 
         // Add segment to transmission queue
         queue.add(segment);
+
+        timer.schedule(new TimeOutHandler(segment, IPAddress, port, UDPsocket, time), time);
 /*
         // Start timer
         timerTask = new TimeOutHandler(segment, IPAddress, port, UDPsocket, time);
