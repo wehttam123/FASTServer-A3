@@ -15,9 +15,9 @@
     *
     * @param segment	  segment
     * @param IPAddress	IP address
-    * @param port		  port
-    * @param UDPsocket UDP socket
-    * @param time      timeout
+    * @param port		    port
+    * @param UDPsocket  UDP socket
+    * @param time       timeout
     */
 
      private Segment segment;
@@ -38,23 +38,21 @@
       @Override
       public void run() {
         try {
-          //System.out.println("timeout: seg: " + segment.getSeqNum() + " port: " + IPAddress + " socket: " + UDPsocket + " time: " + time);
 
+          //Do not resend if already Acknowledged
           if(segment.getSeqNum() >= (FastClient.listsize - FastClient.list)){
-          // Resend segment
-          DatagramPacket sendPacket =  new DatagramPacket(segment.getBytes(), segment.getLength(), IPAddress, port);
-          if (!UDPsocket.isClosed())
-          {
-            UDPsocket.send(sendPacket);
 
-            // Restart timer
-            Timer timer = new Timer(true);
-            timer.schedule(new TimeOutHandler(segment, IPAddress, port, UDPsocket, time), time);
-            //TimerTask timerTask = new TimeOutHandler(segment, IPAddress, port, UDPsocket, time);
-            //Timer timer = new Timer(true);
-            //timer.schedule(timerTask,time);*/
-         }
-        }
+            // Resend segment
+            DatagramPacket sendPacket =  new DatagramPacket(segment.getBytes(), segment.getLength(), IPAddress, port);
+            if (!UDPsocket.isClosed())
+            {
+              UDPsocket.send(sendPacket);
+
+              // Restart timer
+              Timer timer = new Timer(true);
+              timer.schedule(new TimeOutHandler(segment, IPAddress, port, UDPsocket, time), time);
+            }
+          }
         }
         catch (Exception e)
         {
@@ -62,6 +60,16 @@
         }
       }
  }
+
+ /**
+  * Constructor to initialize the program
+  *
+  * @param UDPsocket	    UDP socket
+  * @param ack	          Acknowledgment
+  * @param ackData		    Extracted data from ack
+  * @param receivePacket  Recieved packet
+  * @param queue          Transmission queue
+  */
 
 class Receive extends Thread {
 
@@ -79,26 +87,25 @@ class Receive extends Thread {
     this.receivePacket = rpkt;
     queue = txqueue;
  	}
- 	//Override run method of Thread Class --- following will be executed for each client
+
  	public void run()
  	{
     try
 		{
+      // Recieve acks until file is fully transfered
 			while(!UDPsocket.isClosed())
 			{
-        //System.out.println(queue.size());
-
         // receive ACK
         receivePacket =  new DatagramPacket(ack, ack.length);
         ackData = new Segment();
         UDPsocket.receive(receivePacket);
         ackData.setBytes(receivePacket.getData());
 
+        // If in the queue then Acknowledge the node
         if(queue.getSegment(ackData.getSeqNum()) != null) {
-          //System.out.println("received ack: " + ackData.getSeqNum());
           queue.getNode(ackData.getSeqNum()).setStatus(1);
+          // Remove all Acknowledged nodes
           while (queue.getHeadNode() != null && queue.getHeadNode().getStatus() == 1) {
-            //System.out.println("removing node: " + ackData.getSeqNum());
             queue.remove();
             FastClient.list--;
           }
@@ -117,7 +124,6 @@ public class FastClient{
         *
         * @param server_name    server name or IP
         * @param server_port    server port
-        * @param file_name      file to be transfered
         * @param window         window size
 	      * @param timeout	      time out value
         */
@@ -126,7 +132,7 @@ public class FastClient{
         public int wind;
         public int time;
 
-        public final static int MAX_PAYLOAD_SIZE = 1000; // bytes
+        public final static int MAX_PAYLOAD_SIZE = 1000;
         public static int list = 0;
         public static int listsize = 0;
 
@@ -170,7 +176,6 @@ public class FastClient{
     Segment segment = null;
 
     int content = 0; // Number of bytes from read
-    int seq = 0;     // Sequence number
 
     // Timer
     TimerTask timerTask = null;
@@ -246,16 +251,8 @@ public class FastClient{
         // Add segment to transmission queue
         queue.add(segment);
 
-        timer.schedule(new TimeOutHandler(segment, IPAddress, port, UDPsocket, time), time);
-/*
         // Start timer
-        timerTask = new TimeOutHandler(segment, IPAddress, port, UDPsocket, time);
-        timer = new Timer(true);
-        timer.schedule(timerTask,time);
-
-        // Stop timer
-        timer.cancel();
-        timer.purge();*/
+        timer.schedule(new TimeOutHandler(segment, IPAddress, port, UDPsocket, time), time);
       }
 
       // Wait for transmisson queue to be empty
