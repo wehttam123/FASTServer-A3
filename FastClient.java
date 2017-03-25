@@ -57,55 +57,51 @@
       }
  }
 
-class Recive extends Thread {
- 	private Socket connection;
- 	public Recive(Socket socket)
+class Receive extends Thread {
+
+  private DatagramSocket UDPsocket;
+  private byte[] ack;
+  private Segment ackData;
+  private DatagramPacket receivePacket;
+  private TxQueue queue;
+
+ 	public Receive(DatagramSocket socket, byte[] ackarray, Segment ackseg, DatagramPacket rpkt, TxQueue txqueue)
  	{
- 		this.connection = socket;
+    UDPsocket = socket;
+    this.ack = ackarray;
+    this.ackData = ackseg;
+    this.receivePacket = rpkt;
+    queue = txqueue;
  	}
  	//Override run method of Thread Class --- following will be executed for each client
  	public void run()
  	{
- 		/*String s;
- 		try
- 		{
- 			PrintWriter outputStream = new PrintWriter(new
- 			OutputStreamWriter(connection.getOutputStream(), "UTF-8"));
- 			Scanner inputStream = new Scanner(connection.getInputStream(), "UTF-8");
- 			//Respond to messages from the client
- 			while(true)
- 			{
- 				s = inputStream.nextLine();
- 				System.out.println(s);
- 				//exit if message from client is "bye�
- 				if(s.equalsIgnoreCase("bye"))
- 				{
- 					outputStream.println("bye");
- 					outputStream.flush();
- 					break;
- 				}
- 				outputStream.println(s);
- 				outputStream.flush();
- 			} // close while
- 		} // close try
- 		catch (Exception e)
- 		{
- 			//Ignore Exception
- 		}
- 		finally
- 		{
- 			if (connection != null)
- 			{
- 				try{
- 					connection.close();
- 				}
- 				catch (IOException ex){
- 					// ignore
- 				} //close try
- 			} // close if
- 		} // close finally*/
- 	} // close run method
- } // close class
+    try
+		{
+			while(!UDPsocket.isClosed())
+			{
+        //System.out.println(queue.size());
+
+        // receive ACK
+        receivePacket =  new DatagramPacket(ack, ack.length);
+        ackData = new Segment();
+        UDPsocket.receive(receivePacket);
+        ackData.setBytes(receivePacket.getData());
+
+        if(queue.getSegment(ackData.getSeqNum()) != null) {
+          //System.out.println("received ack: " + ackData.getSeqNum());
+          queue.getNode(ackData.getSeqNum()).setStatus(1);
+          while (queue.getHeadNode() != null && queue.getHeadNode().getStatus() == 1) {
+            //System.out.println("removing node: " + ackData.getSeqNum());
+            queue.remove();
+          }
+        }
+			}
+      System.out.println("socket closed");
+		}
+		catch (Exception e) {}
+ 	}
+ }
 
 public class FastClient{
 
@@ -219,10 +215,11 @@ public class FastClient{
         if(serverIn.readByte() == 0){break;}
       }
 
-      // Start recive thread
+      // Start receive thread
+      Receive receive = new Receive(UDPsocket, ack, ackData, receivePacket, queue);
+      receive.start();
 
       // Send File segments
-      System.out.println(Segments.size());
       for (int i = 0; i < Segments.size(); i++) {
         // Create segment
         segment = new Segment(i,Segments.get(i));
@@ -242,16 +239,6 @@ public class FastClient{
         timer = new Timer(true);
         timer.schedule(timerTask,time);
 
-        // Recive ACK
-        receivePacket =  new DatagramPacket(ack, ack.length);
-        ackData = new Segment();
-
-        //Check sequence number is equal
-        do {
-          UDPsocket.receive(receivePacket);
-          ackData.setBytes(receivePacket.getData());
-        } while(ackData.getSeqNum() != seq);
-
         // Stop timer
         timer.cancel();
         timer.purge();*/
@@ -259,9 +246,11 @@ public class FastClient{
 
       // Wait for transmisson queue to be empty
       while (!queue.isEmpty()) {};
+      UDPsocket.close();
 
       // Send EOT
       serverOut.writeByte(0);
+      serverOut.flush();
 
       // Clean Up
       fileIn.close();
@@ -315,7 +304,6 @@ public class FastClient{
 			System.out.println("usage: java FastClient server port file windowsize");
 			System.exit(0);
 		}
-
 
 		FastClient fc = new FastClient(server, server_port, window, timeout);
 
