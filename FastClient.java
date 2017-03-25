@@ -38,9 +38,9 @@
       @Override
       public void run() {
         try {
-          System.out.println("timeout: seg: " + segment.getSeqNum() + " port: " + IPAddress + " socket: " + UDPsocket + " time: " + time);
+          //System.out.println("timeout: seg: " + segment.getSeqNum() + " port: " + IPAddress + " socket: " + UDPsocket + " time: " + time);
 
-
+          if(segment.getSeqNum() >= (FastClient.listsize - FastClient.list)){
           // Resend segment
           DatagramPacket sendPacket =  new DatagramPacket(segment.getBytes(), segment.getLength(), IPAddress, port);
           if (!UDPsocket.isClosed())
@@ -54,6 +54,7 @@
             //Timer timer = new Timer(true);
             //timer.schedule(timerTask,time);*/
          }
+        }
         }
         catch (Exception e)
         {
@@ -99,6 +100,7 @@ class Receive extends Thread {
           while (queue.getHeadNode() != null && queue.getHeadNode().getStatus() == 1) {
             //System.out.println("removing node: " + ackData.getSeqNum());
             queue.remove();
+            FastClient.list--;
           }
         }
 			}
@@ -125,6 +127,8 @@ public class FastClient{
         public int time;
 
         public final static int MAX_PAYLOAD_SIZE = 1000; // bytes
+        public static int list = 0;
+        public static int listsize = 0;
 
 	public FastClient(String server_name, int server_port, int window, int timeout) {
 
@@ -198,6 +202,9 @@ public class FastClient{
     {
       System.out.println("Error: " + e.getMessage());
     }
+
+    list = Segments.size();
+    listsize = Segments.size();
 
     try {
       // Setup ports
